@@ -1,0 +1,31 @@
+[Unit]
+Description=SCP Discord Bot - Sacred Community Project Digital Library
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scpbot
+Group=scpbot
+WorkingDirectory=/home/scpbot/scp-bot
+Environment=PATH=/home/scpbot/scp-bot/venv/bin
+ExecStart=/home/scpbot/scp-bot/start_bot.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scp-bot
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/scpbot/scp-bot
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
