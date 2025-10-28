@@ -2,7 +2,6 @@
 import discord
 from discord.ext import commands
 import asyncio
-import subprocess
 import sys
 from datetime import datetime, timedelta
 import json
@@ -489,12 +488,25 @@ async def update_library_command(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed)
         
         try:
-            # Run scraper update command
-            result = subprocess.run([sys.executable, SCRAPER_SCRIPT, "--update"], 
-                          capture_output=True, text=True, timeout=300, 
-                          encoding='utf-8', errors='replace')
+            # Run scraper update command asynchronously to avoid blocking Discord heartbeats
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, SCRAPER_SCRIPT, "--update",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
             
-            if result.returncode == 0:
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise TimeoutError("Update took too long")
+            
+            returncode = process.returncode
+            stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ''
+            stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
+            
+            if returncode == 0:
                 embed = create_embed("✅ Update Complete", "Library database updated successfully!", COLORS["success"])
                 
                 # Get new stats
@@ -505,9 +517,9 @@ async def update_library_command(interaction: discord.Interaction):
                                     f"✍️ {stats['total_authors']} authors", 
                               inline=False)
             else:
-                embed = create_embed("❌ Update Failed", f"Error running update: {result.stderr[:1000]}", COLORS["error"])
+                embed = create_embed("❌ Update Failed", f"Error running update: {stderr_text[:1000]}", COLORS["error"])
         
-        except subprocess.TimeoutExpired:
+        except TimeoutError:
             embed = create_embed("⏱️ Update Timeout", "Update took too long. Check manually.", COLORS["warning"])
         except Exception as e:
             embed = create_embed("❌ Update Error", f"Unexpected error: {str(e)}", COLORS["error"])
@@ -535,12 +547,25 @@ async def refresh_library_command(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed)
         
         try:
-            # Run scraper full command
-            result = subprocess.run([sys.executable, SCRAPER_SCRIPT, "--full"], 
-                          capture_output=True, text=True, timeout=600,
-                          encoding='utf-8', errors='replace')
+            # Run scraper full command asynchronously to avoid blocking Discord heartbeats
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, SCRAPER_SCRIPT, "--full",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
             
-            if result.returncode == 0:
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise TimeoutError("Refresh took too long")
+            
+            returncode = process.returncode
+            stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ''
+            stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
+            
+            if returncode == 0:
                 embed = create_embed("✅ Refresh Complete", "Full library refresh completed successfully!", COLORS["success"])
                 
                 # Get new stats
@@ -551,9 +576,9 @@ async def refresh_library_command(interaction: discord.Interaction):
                                     f"✍️ {stats['total_authors']} authors", 
                               inline=False)
             else:
-                embed = create_embed("❌ Refresh Failed", f"Error during refresh: {result.stderr[:1000]}", COLORS["error"])
+                embed = create_embed("❌ Refresh Failed", f"Error during refresh: {stderr_text[:1000]}", COLORS["error"])
         
-        except subprocess.TimeoutExpired:
+        except TimeoutError:
             embed = create_embed("⏱️ Refresh Timeout", "Refresh took too long. Check manually.", COLORS["warning"])
         except Exception as e:
             embed = create_embed("❌ Refresh Error", f"Unexpected error: {str(e)}", COLORS["error"])
